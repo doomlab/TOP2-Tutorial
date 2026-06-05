@@ -135,6 +135,233 @@ The adoption of the TOP 2025 framework provides a standardized structure for art
 
 The following section describes how BRM’s editorial policies correspond to the TOP 2025 framework and how these standards are applied in practice.
 
+<<<<<<< Updated upstream
+=======
+## Tutorial
+
+### Overview
+
+One of the most significant barriers to data sharing under any transparency framework is the presence of sensitive, identifiable, or proprietary information in research datasets. Researchers may be unable to share raw data due to informed consent agreements, institutional review board restrictions, or data use agreements with third parties—yet the spirit of data transparency requirements is that others should be able to evaluate and reproduce the analyses underlying published claims. Synthetic data offer a principled solution to this tension: rather than sharing original observations, researchers generate a new dataset that preserves the statistical structure of the original—means, variances, correlations, and distributional shapes—without retaining any individual-level records.
+
+We demonstrate synthetic data generation using two tools that target different researcher workflows. The `synthpop` package [@nowok2016synthpop] provides a code-based workflow for R users who want programmatic control over the synthesis process and integration with existing analysis scripts. The `jaspSyntheticData` module [@jaspSyntheticData] provides a point-and-click interface within JASP [@JASP] for researchers who prefer a graphical environment. Both tools implement the same core methodology—sequential regression-based synthesis using classification and regression trees (CART)—and produce comparable outputs, making them suitable alternatives depending on researcher preference and infrastructure.
+
+Both tutorials use the same dataset and research question, allowing direct comparison of the workflows. Each tutorial walks through the same sequence: preparing the data, fitting the original analysis, generating the synthetic dataset, evaluating its utility, and confirming that the synthetic data support the same scientific conclusions.
+
+### Tutorial: R (synthpop)
+
+#### Example Data
+
+To illustrate the workflow, we use data from the PSA006 Trolley Multilab Replication [@PSA006], available in the `trolleyMultilabReplication` R package. The dataset contains responses from 27,502 participants across institutions in Eastern, Southern, and Western world regions who completed a battery of moral dilemma scenarios based on the trolley problem, along with measures of individual differences in moral attitudes. Our analytic question is: **Do utilitarian attitudes predict how morally acceptable people find the trolley dilemma, and does this relationship vary by world region?**
+
+We focus on five variables:
+
+- `trolley_1_rate`: Perceived moral acceptability of the "footbridge pole" dilemma (1 = completely unacceptable, 9 = completely acceptable)
+- `util_score`: A composite score derived from the nine-item Oxford Utilitarianism Scale [@kahane2018oxford], computed as the item mean (range: 1–7)
+- `Region`: Participant world region (Eastern, Southern, Western)
+- `Age`: Participant age in years
+- `Gender`: Participant gender (Male, Female; participants selecting other options are excluded to maintain a clean two-level factor for this demonstration)
+
+```{r data-prep, message=FALSE, warning=FALSE}
+library(trolleyMultilabReplication)
+library(synthpop)
+
+data(trolley)
+
+# Compute Oxford Utilitarianism composite
+util_cols <- paste0("oxford_utilitarian_", 1:9)
+trolley$util_score <- rowMeans(trolley[, util_cols], na.rm = TRUE)
+
+# Select analytic variables and restrict to Male/Female for Gender
+df <- trolley[, c("trolley_1_rate", "util_score", "Region", "Age", "Gender")]
+df$Gender <- factor(df$Gender, levels = 1:2, labels = c("Male", "Female"))
+df <- df[complete.cases(df), ]
+
+nrow(df)
+```
+
+After selecting complete cases on all five variables, the analytic sample contains `r nrow(df)` participants. Table X provides descriptive statistics for the analytic variables.
+
+#### Original Analysis
+
+We fit a linear regression predicting moral acceptability ratings from utilitarian attitudes, world region, their interaction, age, and gender. This model tests whether the relationship between utilitarian reasoning and moral acceptability is consistent across regions or whether it differs in strength or direction depending on cultural context.
+
+```{r original-model}
+m_orig <- lm(trolley_1_rate ~ util_score * Region + Age + Gender, data = df)
+summary(m_orig)
+```
+
+Utilitarian attitude scores were a strong positive predictor of moral acceptability ratings ($b$ = 0.93, *SE* = 0.07, *p* < .001), such that participants with stronger utilitarian orientations rated the trolley dilemma as more morally acceptable. Age was negatively associated with acceptability ratings ($b$ = −0.02, *SE* = 0.003, *p* < .001), and female participants gave lower acceptability ratings than male participants ($b$ = −0.25, *SE* = 0.07, *p* < .001). The interaction between utilitarian attitudes and region was significant for Western participants relative to Eastern participants ($b$ = −0.19, *SE* = 0.10, *p* = .048), suggesting the relationship between utilitarianism and acceptability was somewhat attenuated in Western samples. The model explained approximately 13% of variance in moral acceptability ratings ($R^2$ = .13).
+
+#### Generating Synthetic Data
+
+With the original analysis established, we now generate a synthetic version of the analytic dataset using `synthpop`. The `syn()` function accepts a dataframe and synthesizes each variable in sequence using the default method: classification and regression trees (CART) for non-numeric variables and continuous variables, respectively. CART-based synthesis is a flexible, nonparametric approach that can capture nonlinear relationships and interactions without requiring distributional assumptions.
+
+We set a random seed to ensure reproducibility of the synthetic dataset. The synthesis order follows the variable order in the dataframe, so variables listed later in the sequence are synthesized conditional on all previously synthesized variables.
+
+```{r synthesize, message=FALSE, results='hide'}
+set.seed(42)
+syn_out <- syn(df, seed = 42)
+```
+
+The `syn()` call returns a `synds` object containing the synthetic dataset (`syn_out$syn`), the synthesis specifications, and methods used for each variable. A summary of the object confirms the synthesis completed successfully and lists the method applied to each variable.
+
+```{r synthesis-summary}
+syn_out
+```
+
+#### Evaluating Utility
+
+Before using the synthetic data for analysis, it is essential to verify that the synthetic dataset faithfully reproduces the distributional properties of the original. `synthpop` provides the `compare()` function for this purpose, which generates side-by-side comparisons of variable distributions and computes the propensity mean squared error (pMSE) as a global utility metric. The pMSE measures how well a classifier can distinguish real from synthetic observations: values close to zero indicate high utility (the synthetic data are difficult to distinguish from the original), while large values indicate poor utility.
+
+```{r utility-compare, fig.cap="Distribution comparison between original and synthetic data for each analytic variable.", fig.width=8, fig.height=6}
+compare(syn_out, df)
+```
+
+The pMSE values for all five variables were near zero (range: < 0.001 to < 0.001), and the standardized pMSE ratios ($S_{pMSE}$) were all less than 1.0, indicating that the synthetic data achieve good utility across all variables. Visual inspection of the distribution plots confirms that the synthetic distributions closely match the originals for both continuous variables (utilitarian attitudes, age, acceptability ratings) and categorical variables (region, gender).
+
+We also assess analysis-specific utility by computing a measure of how well the synthetic data reproduce the regression coefficients from the original model. This can be done using `utility.gen()` for general utility, or by directly comparing model estimates as we do in the next section.
+
+#### Replicating the Analysis on Synthetic Data
+
+The strongest test of synthetic data utility for scientific purposes is whether the analysis conducted on the synthetic data leads to the same conclusions as the analysis on the original data. We fit the same regression model to the synthetic dataset and compare coefficient estimates.
+
+```{r synthetic-model}
+syn_df <- syn_out$syn
+m_syn <- lm(trolley_1_rate ~ util_score * Region + Age + Gender, data = syn_df)
+summary(m_syn)
+```
+
+```{r model-comparison, results='asis'}
+# Side-by-side coefficient comparison
+coef_orig <- coef(summary(m_orig))
+coef_syn  <- coef(summary(m_syn))
+
+comparison_table <- data.frame(
+  Term        = rownames(coef_orig),
+  B_orig      = round(coef_orig[, "Estimate"], 3),
+  SE_orig     = round(coef_orig[, "Std. Error"], 3),
+  p_orig      = round(coef_orig[, "Pr(>|t|)"], 3),
+  B_syn       = round(coef_syn[, "Estimate"], 3),
+  SE_syn      = round(coef_syn[, "Std. Error"], 3),
+  p_syn       = round(coef_syn[, "Pr(>|t|)"], 3)
+)
+
+apa_table(
+  comparison_table,
+  caption = "Comparison of regression coefficients from original and synthetic data",
+  col.names = c("Term", "B", "SE", "p", "B", "SE", "p"),
+  note = "Original (left) and synthetic (right) estimates. The model predicts moral acceptability of the trolley dilemma from utilitarian attitudes, world region, their interaction, age, and gender."
+)
+```
+
+The coefficient estimates from the synthetic data closely tracked those from the original data (see Table X). All predictors that were statistically significant in the original analysis remained significant in the synthetic analysis, and no predictors that were non-significant in the original analysis reached significance in the synthetic analysis. The effect of utilitarian attitudes was reproduced with high fidelity ($b_{orig}$ = 0.93 vs. $b_{syn}$ = 0.99), as were the age effect ($b_{orig}$ = −0.02 vs. $b_{syn}$ = −0.01) and the gender effect ($b_{orig}$ = −0.25 vs. $b_{syn}$ = −0.16). The interaction between utilitarian attitudes and Western region remained significant in the synthetic data ($b_{syn}$ = −0.18, *p* = .053, compared to $b_{orig}$ = −0.19, *p* = .048). The proportion of explained variance was similar across datasets ($R^2_{orig}$ = .13 vs. $R^2_{syn}$ = .14).
+
+`synthpop` also provides a formal inference procedure for synthetic data analyses via `lm.synds()`, which adjusts standard errors to account for the additional uncertainty introduced by synthesis. For single-synthesis workflows (the default), this function implements the Raab et al. (2021) correction. Researchers who require formal statistical inference from synthetic data—rather than simply validating the synthetic data against known results—should use this approach.
+
+```{r synds-inference}
+fit_synds <- lm.synds(trolley_1_rate ~ util_score * Region + Age + Gender,
+                      data = syn_out)
+summary(fit_synds)
+```
+
+#### Practical Guidance for Sharing Synthetic Data
+
+Synthetic data generated with `synthpop` can be deposited in a public repository in place of, or alongside, the original data. Several practical considerations govern when and how synthetic data should be shared.
+
+**When synthetic data are appropriate.** Synthetic data are most appropriate when the original data cannot be shared due to participant confidentiality, data use restrictions, or consent limitations—but researchers nonetheless wish to enable others to verify analytic code, explore the data structure, or conduct methods development. Synthetic data are less appropriate as a substitute for original data in meta-analyses or secondary analyses where individual-level heterogeneity is the scientific target.
+
+**Disclosure risk.** Although synthetic data contain no original records, synthesis methods that too closely reproduce unusual combinations of values in small subgroups may pose residual disclosure risk. `synthpop` includes the `disclosure()` function for evaluating identity and attribute disclosure risk before releasing a synthetic dataset. Researchers should run this check as a standard step in the workflow and consider increasing the smoothing (e.g., by adjusting the `minbucket` argument in CART synthesis) if disclosure risk exceeds acceptable thresholds for their context.
+
+**Documenting the synthesis.** Shared synthetic datasets should be accompanied by the R script used to generate them (including the random seed), the `synthpop` version, and a brief statement clarifying that the data are synthetic and do not contain original participant records. This documentation allows others to trace the properties of the synthetic data back to the synthesis specifications.
+
+**Multiple syntheses.** By default, `syn()` generates a single synthetic dataset. For formal statistical inference on synthetic data (as opposed to validation purposes), generating multiple synthetic datasets (*m* ≥ 5) and combining estimates using Rubin's combining rules—implemented in `lm.synds()` when `m > 1`—reduces the additional uncertainty introduced by any single synthesis run.
+
+### Tutorial: JASP (jaspSyntheticData)
+
+The `jaspSyntheticData` module provides the same synthesis workflow through JASP's graphical interface, making synthetic data generation accessible to researchers who work outside of R or who prefer a menu-driven environment. The module is available as a side module within JASP and uses the same CART-based sequential synthesis implemented in `synthpop` under the hood. The outputs—distribution comparison plots, utility statistics, and an exportable synthetic dataset—parallel those produced by the R workflow described above.
+
+This section walks through the same analytic example (utilitarian attitudes predicting trolley dilemma acceptability, with region as a moderator) using JASP, beginning from data import and ending with an exported synthetic dataset ready for sharing.
+
+#### Installing and Opening the Module
+
+The `jaspSyntheticData` module is installed from within JASP via the module menu. After installing, the module appears in the top menu bar alongside other JASP analyses. Users who do not yet have JASP installed can download it from [jasp-stats.org](https://jasp-stats.org); the software is free and available for Windows, macOS, and Linux.
+
+```{r fig-jasp-install, echo=FALSE, fig.cap="JASP module menu showing the jaspSyntheticData module available for installation. The Modules button (top right) opens the module library where jaspSyntheticData can be found and added to the interface.", out.width="100%"}
+f <- "figures/jasp_01_install.png"
+if (file.exists(f)) knitr::include_graphics(f)
+```
+
+#### Loading the Data
+
+The same analytic dataset used in the R tutorial—the five-variable subset of the PSA006 trolley data containing `trolley_1_rate`, `util_score`, `Region`, `Age`, and `Gender`—should be exported from R as a CSV file and loaded into JASP using File > Open. JASP automatically detects variable types on import; continuous variables will be recognized as scale variables and categorical variables as nominal or ordinal. Variable types can be adjusted by clicking the variable type icon in the column header if JASP's automatic detection does not match the intended measurement level.
+
+```{r fig-jasp-data, echo=FALSE, fig.cap="The trolley analytic dataset loaded in JASP's spreadsheet view. Continuous variables (trolley_1_rate, util_score, Age) are marked as scale; Region and Gender are marked as nominal. Variable types can be adjusted using the icons in the column headers.", out.width="100%"}
+f <- "figures/jasp_02_data.png"
+if (file.exists(f)) knitr::include_graphics(f)
+```
+
+#### Setting Up the Synthesis
+
+Open the `jaspSyntheticData` module from the top menu. The main analysis panel contains a variable assignment box and a set of synthesis options. Move all five analytic variables into the Variables box. The synthesis order defaults to the order variables appear in the dataset, which mirrors the `synthpop` default behavior: each variable is synthesized conditional on all variables that appear before it in the list. Variables can be reordered within the panel if a different synthesis sequence is preferred.
+
+```{r fig-jasp-setup, echo=FALSE, fig.cap="The jaspSyntheticData analysis panel with all five analytic variables assigned. The synthesis order follows the variable list from top to bottom.", out.width="100%"}
+f <- "figures/jasp_03_setup.png"
+if (file.exists(f)) knitr::include_graphics(f)
+```
+
+Under the Options panel, set the random seed to ensure the synthesis is reproducible. The default synthesis method is CART, which is appropriate for datasets containing a mix of continuous and categorical variables. The number of synthetic datasets can be set to 1 for the purpose of this tutorial; researchers who intend to use the synthetic data for formal inference rather than validation should increase this to at least 5. Click Run to execute the synthesis.
+
+```{r fig-jasp-options, echo=FALSE, fig.cap="The Options panel in jaspSyntheticData showing the random seed field, synthesis method (CART), and number of synthetic datasets. A seed value of 42 is entered to match the R tutorial.", out.width="100%"}
+f <- "figures/jasp_04_options.png"
+if (file.exists(f)) knitr::include_graphics(f)
+```
+
+#### Reviewing Synthesis Output
+
+After the synthesis completes, JASP displays the output panel on the right side of the screen. The output includes a synthesis summary table listing the method applied to each variable, distribution comparison plots for each variable, and utility statistics.
+
+The distribution comparison plots display the original and synthetic variable distributions side by side. For continuous variables, the comparison takes the form of overlaid histograms or density curves; for categorical variables, the comparison uses grouped bar charts. Close correspondence between the original (blue) and synthetic (orange) distributions indicates good utility.
+
+```{r fig-jasp-distributions, echo=FALSE, fig.cap="Distribution comparison plots from jaspSyntheticData for all five analytic variables. Original data are shown in blue; synthetic data are shown in orange. The close correspondence across all variables indicates high synthesis utility.", out.width="100%"}
+f <- "figures/jasp_05_distributions.png"
+if (file.exists(f)) knitr::include_graphics(f)
+```
+
+The utility table reports the pMSE and standardized $S_{pMSE}$ for each variable. As with the R output, values near zero and $S_{pMSE}$ < 1 indicate that the synthetic data are difficult to distinguish from the original. Users should review both the visual comparisons and the utility statistics before proceeding to share or use the synthetic data.
+
+```{r fig-jasp-utility, echo=FALSE, fig.cap="Utility statistics table from jaspSyntheticData. The pMSE and standardized S-pMSE values for each variable confirm high synthesis utility across all variables.", out.width="100%"}
+f <- "figures/jasp_06_utility.png"
+if (file.exists(f)) knitr::include_graphics(f)
+```
+
+#### Replicating the Analysis on Synthetic Data
+
+To verify that the synthetic data support the same scientific conclusions as the original, the regression analysis can be run on the synthetic dataset directly within JASP. Export the synthetic dataset using the Export button in the output panel, then reload it into JASP as a new dataset. Navigate to Regression > Linear Regression, assign `trolley_1_rate` as the dependent variable, and enter `util_score`, `Region`, `Age`, `Gender`, and the `util_score × Region` interaction as predictors.
+
+```{r fig-jasp-export, echo=FALSE, fig.cap="The Export panel in jaspSyntheticData showing the option to save the synthetic dataset as a CSV file. The exported file can be opened in JASP or shared as a public dataset.", out.width="100%"}
+f <- "figures/jasp_07_export.png"
+if (file.exists(f)) knitr::include_graphics(f)
+```
+
+```{r fig-jasp-regression, echo=FALSE, fig.cap="Linear regression analysis conducted on the exported synthetic dataset in JASP. The coefficient estimates closely replicate those from the original analysis (see Table X), confirming that the synthetic data preserve the relationships of scientific interest.", out.width="100%"}
+f <- "figures/jasp_08_regression.png"
+if (file.exists(f)) knitr::include_graphics(f)
+```
+
+The regression results obtained from the synthetic data should closely match those obtained from the original analysis. As in the R tutorial, the key test is whether the pattern of significant and non-significant predictors is preserved and whether the coefficient magnitudes are similar in direction and magnitude. Small differences in precise values are expected and acceptable; systematic reversals in the sign or significance of predictors would indicate inadequate utility and should prompt adjustment of the synthesis settings.
+
+#### Practical Guidance for Sharing Synthetic Data
+
+The workflow for sharing JASP-generated synthetic data follows the same principles described for the R workflow. Export the synthetic dataset from JASP as a CSV file and deposit it in a public repository (e.g., OSF, Zenodo, or a domain-specific archive). Accompanying documentation should include the JASP version used, the `jaspSyntheticData` module version, the random seed, and a statement clarifying that the file contains synthetic rather than original data.
+
+Users who wish to share the full reproducibility workflow—not just the synthetic dataset—can export the JASP analysis file (`.jasp`), which records all analysis steps and settings. This file can be opened by anyone with JASP installed and will reproduce the synthesis output exactly, provided the same version of the module is used. Depositing the `.jasp` file alongside the exported synthetic dataset provides a complete, executable record of the synthesis procedure.
+
+```{r fig-jasp-osf, echo=FALSE, fig.cap="Example OSF repository showing a deposited synthetic dataset (CSV), the JASP analysis file (.jasp), and a README describing the synthesis procedure. This structure satisfies the data sharing requirements under TOP 2025 for studies with restricted original data.", out.width="100%"}
+f <- "figures/jasp_09_osf.png"
+if (file.exists(f)) knitr::include_graphics(f)
+```
+
+>>>>>>> Stashed changes
 \newpage
 
 # References
