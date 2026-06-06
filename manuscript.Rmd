@@ -135,8 +135,6 @@ The adoption of the TOP 2025 framework provides a standardized structure for art
 
 The following section describes how BRM’s editorial policies correspond to the TOP 2025 framework and how these standards are applied in practice.
 
-<<<<<<< Updated upstream
-=======
 ## Tutorial
 
 ### Overview
@@ -361,7 +359,14 @@ f <- "figures/jasp_09_osf.png"
 if (file.exists(f)) knitr::include_graphics(f)
 ```
 
->>>>>>> Stashed changes
+### Versioning
+
+new versions maybe found here XX
+
+## Discussion
+
+stuff here 
+
 \newpage
 
 # References
