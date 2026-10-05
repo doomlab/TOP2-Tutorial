@@ -1,0 +1,52 @@
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\centering
+\pandocbounded{\includegraphics[keepaspectratio,alt={\label{fig:utility-compare}Distribution comparison between original and synthetic data for each analytic variable.}]{manuscript_files/figure-latex/utility-compare-1.pdf}}
+\caption{\label{fig:utility-compare}Distribution comparison between original and synthetic data for each analytic variable.}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\includegraphics[width=1\linewidth]{figures/jasp_01_install} \caption{JASP module menu showing the jaspSyntheticData module available for installation. The Modules button (top right) opens the module library where jaspSyntheticData can be found and added to the interface.}\label{fig:fig-jasp-install}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\includegraphics[width=1\linewidth]{figures/jasp_02_data} \caption{The trolley analytic dataset loaded in JASP's spreadsheet view. Continuous variables (trolley\_1\_rate, util\_score, Age) are marked as scale; Region and Gender are marked as nominal. Variable types can be adjusted using the icons in the column headers.}\label{fig:fig-jasp-data}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\includegraphics[width=1\linewidth]{figures/jasp_03_setup} \caption{The jaspSyntheticData analysis panel with all five analytic variables assigned. The synthesis order follows the variable list from top to bottom.}\label{fig:fig-jasp-setup}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\includegraphics[width=1\linewidth]{figures/jasp_04_options} \caption{The Options section in jaspSyntheticData showing the row count, random seed, and synthesis method (CART) settings. A seed value of 42 is entered to match the *R* tutorial.}\label{fig:fig-jasp-options}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\includegraphics[width=1\linewidth]{figures/jasp_05_distributions} \caption{Distribution comparison plots from jaspSyntheticData for all five analytic variables. Original data are shown in dark blue; synthetic data are shown in light blue. Each panel title reports the standardized pMSE for that variable.}\label{fig:fig-jasp-distributions}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\includegraphics[width=1\linewidth]{figures/jasp_06_utility} \caption{Utility by Variable table from jaspSyntheticData, showing the pMSE and standardized pMSE for each variable.}\label{fig:fig-jasp-utility}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\includegraphics[width=1\linewidth]{figures/jasp_08_regression} \caption{Linear regression analysis conducted on the saved synthetic dataset in JASP. The coefficient estimates are compared with those from the original analysis in Table \\ref{tab:jasp-model-comparison}.}\label{fig:fig-jasp-regression}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\includegraphics[width=1\linewidth]{figures/jasp_09_output} \caption{Exporting JASP results as an .html file (File > Export Results). Unlike the .jasp analysis file, the exported results include the output and analysis settings but not the original data.}\label{fig:fig-jasp-output}
+\end{figure*}
+\begin{figure*}[hbt]
+\ifnextchar[{\eatarg}{}
+
+\includegraphics[width=1\linewidth]{figures/re3data_search} \caption{Searching re3data.org for trusted repositories. Filters on the left limit results to repositories that assign persistent identifiers (PID systems: DOI), support versioning (Versioning: yes), provide open data access, and cover the relevant subject area.}\label{fig:re3data-search}
+\end{figure*}
